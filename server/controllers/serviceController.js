@@ -29,9 +29,13 @@ const updateService = async (req, res) => {
       item.icon = icon || item.icon;
       if (req.file) {
         if (item.image && item.image.public_id) {
-          const result = await cloudinary.uploader.destroy(item.image.public_id);
-          if (result.result !== 'ok' && result.result !== 'not found') {
-            throw new Error(`Cloudinary deletion failed for public_id: ${item.image.public_id}. Details: ${result.result}`);
+          try {
+            const result = await cloudinary.uploader.destroy(item.image.public_id);
+            if (result.result !== 'ok' && result.result !== 'not found') {
+              console.warn(`Cloudinary deletion warning for public_id: ${item.image.public_id}. Details: ${result.result}`);
+            }
+          } catch (cloudinaryError) {
+            console.error(`Cloudinary destroy error for public_id: ${item.image.public_id}:`, cloudinaryError.message);
           }
         }
         item.image = { public_id: req.file.filename, secure_url: req.file.path };
@@ -47,9 +51,13 @@ const deleteService = async (req, res) => {
     const item = await Service.findById(req.params.id);
     if (item) {
       if (item.image && item.image.public_id) {
-        const result = await cloudinary.uploader.destroy(item.image.public_id);
-        if (result.result !== 'ok' && result.result !== 'not found') {
-          throw new Error(`Cloudinary deletion failed for public_id: ${item.image.public_id}. Details: ${result.result}`);
+        try {
+          const result = await cloudinary.uploader.destroy(item.image.public_id);
+          if (result.result !== 'ok' && result.result !== 'not found') {
+            console.warn(`Cloudinary deletion warning for public_id: ${item.image.public_id}. Details: ${result.result}`);
+          }
+        } catch (cloudinaryError) {
+          console.error(`Cloudinary destroy error for public_id: ${item.image.public_id}:`, cloudinaryError.message);
         }
       }
       await Service.deleteOne({ _id: item._id });

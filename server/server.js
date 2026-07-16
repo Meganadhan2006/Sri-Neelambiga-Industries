@@ -8,11 +8,31 @@ process.on("uncaughtException", (err) => {
 });
 
 const express = require("express");
+require("express-async-errors"); // Handle async errors globally in Express 4
 const cors = require("cors");
 const dotenv = require("dotenv");
 const mongoose = require("mongoose");
 
 dotenv.config();
+
+// ======================
+// Environment Validation
+// ======================
+const requiredEnvVars = [
+  "MONGO_URI",
+  "JWT_SECRET",
+  "CLOUDINARY_CLOUD_NAME",
+  "CLOUDINARY_API_KEY",
+  "CLOUDINARY_API_SECRET"
+];
+requiredEnvVars.forEach((varName) => {
+  if (!process.env[varName]) {
+    console.error(`ERROR: Missing required environment variable: ${varName}`);
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(`Missing required environment variable: ${varName}`);
+    }
+  }
+});
 
 const app = express();
 
@@ -20,21 +40,32 @@ const app = express();
 const sanitizeMiddleware = require("./middleware/sanitize");
 
 // ======================
-// Middleware
+// CORS Configuration
 // ======================
-
-app.use(
-  cors({
-    origin: [
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",")
+  : [
       "http://localhost:5173",
       "http://localhost:5174",
-
-      // Replace these with your Firebase URLs after deployment
       "https://YOUR-CLIENT.web.app",
       "https://YOUR-ADMIN.web.app",
       "https://YOUR-CLIENT.firebaseapp.com",
-      "https://YOUR-ADMIN.firebaseapp.com",
-    ],
+      "https://YOUR-ADMIN.firebaseapp.com"
+    ];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, postman)
+      if (!origin) return callback(null, true);
+      
+      if (allowedOrigins.indexOf(origin) !== -1 || origin.startsWith("http://localhost:")) {
+        callback(null, true);
+      } else {
+        console.warn(`CORS blocked for origin: ${origin}`);
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   })
 );
@@ -52,21 +83,37 @@ app.use((req, res, next) => {
 });
 
 // ======================
-// MongoDB
+// MongoDB (Serverless Optimized)
 // ======================
+let cachedConnection = null;
 
 const connectDB = async () => {
-  try {
-    const conn = await mongoose.connect(process.env.MONGO_URI);
+  if (cachedConnection && mongoose.connection.readyState === 1) {
+    return cachedConnection;
+  }
 
+  try {
+    const conn = await mongoose.connect(process.env.MONGO_URI, {
+      bufferCommands: false, // Prevent hanging queries
+    });
+    cachedConnection = conn;
     console.log("MongoDB Connected:", conn.connection.host);
+    return conn;
   } catch (error) {
-    console.error("MongoDB Error:", error.message);
-    process.exit(1);
+    console.error("MongoDB Connection Error:", error.message);
+    throw error;
   }
 };
 
-connectDB();
+// Middleware to ensure DB connection is alive on every request (crucial for Serverless cold/hot starts)
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    next(new Error(`Database connection failed: ${error.message}`));
+  }
+});
 
 // ======================
 // Routes
@@ -113,9 +160,13 @@ app.use((err, req, res, next) => {
 // ======================
 // Start Server
 // ======================
-
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Listen only when run directly (local development), Vercel will import the app
+if (process.env.NODE_ENV !== "production") {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+module.exports = app;

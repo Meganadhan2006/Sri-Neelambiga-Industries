@@ -97,9 +97,13 @@ const deleteReview = async (req, res) => {
     const review = await Review.findById(req.params.id);
     if (review) {
       if (review.image && review.image.public_id) {
-        const result = await cloudinary.uploader.destroy(review.image.public_id);
-        if (result.result !== 'ok' && result.result !== 'not found') {
-          throw new Error(`Cloudinary delete failed for: ${review.image.public_id}`);
+        try {
+          const result = await cloudinary.uploader.destroy(review.image.public_id);
+          if (result.result !== 'ok' && result.result !== 'not found') {
+            console.warn(`Cloudinary deletion warning for: ${review.image.public_id}. Details: ${result.result}`);
+          }
+        } catch (cloudinaryError) {
+          console.error(`Cloudinary destroy error for public_id: ${review.image.public_id}:`, cloudinaryError.message);
         }
       }
       await Review.deleteOne({ _id: review._id });

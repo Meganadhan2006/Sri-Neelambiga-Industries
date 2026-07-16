@@ -44,9 +44,13 @@ const updateProject = async (req, res) => {
       const imagesToDelete = item.images.filter(img => !parsedExisting.some(pe => pe.public_id === img.public_id));
       if (imagesToDelete.length > 0) {
         await Promise.all(imagesToDelete.map(async (img) => {
-          const result = await cloudinary.uploader.destroy(img.public_id);
-          if (result.result !== 'ok' && result.result !== 'not found') {
-            throw new Error(`Cloudinary deletion failed for public_id: ${img.public_id}. Details: ${result.result}`);
+          try {
+            const result = await cloudinary.uploader.destroy(img.public_id);
+            if (result.result !== 'ok' && result.result !== 'not found') {
+              console.warn(`Cloudinary deletion warning for public_id: ${img.public_id}. Details: ${result.result}`);
+            }
+          } catch (cloudinaryError) {
+            console.error(`Cloudinary destroy error for public_id: ${img.public_id}:`, cloudinaryError.message);
           }
         }));
       }
@@ -69,9 +73,13 @@ const deleteProject = async (req, res) => {
     if (item) {
       if (item.images && item.images.length > 0) {
         await Promise.all(item.images.map(async (img) => {
-          const result = await cloudinary.uploader.destroy(img.public_id);
-          if (result.result !== 'ok' && result.result !== 'not found') {
-            throw new Error(`Cloudinary deletion failed for public_id: ${img.public_id}. Details: ${result.result}`);
+          try {
+            const result = await cloudinary.uploader.destroy(img.public_id);
+            if (result.result !== 'ok' && result.result !== 'not found') {
+              console.warn(`Cloudinary deletion warning for public_id: ${img.public_id}. Details: ${result.result}`);
+            }
+          } catch (cloudinaryError) {
+            console.error(`Cloudinary destroy error for public_id: ${img.public_id}:`, cloudinaryError.message);
           }
         }));
       }

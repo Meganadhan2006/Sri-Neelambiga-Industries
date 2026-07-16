@@ -1,20 +1,19 @@
 const rateLimitWindow = 15 * 60 * 1000; // 15 minutes
 const requestCounts = new Map();
 
-// Helper: clean up expired IPs to prevent memory leaks
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, record] of requestCounts.entries()) {
-    if (now > record.resetTime) {
-      requestCounts.delete(ip);
-    }
-  }
-}, 5 * 60 * 1000); // run every 5 minutes
-
 const createRateLimiter = (maxRequests, message) => {
   return (req, res, next) => {
     const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     const now = Date.now();
+    
+    // Prune expired records on-demand when the cache grows larger (prevents memory leak without background intervals)
+    if (requestCounts.size > 1000) {
+      for (const [key, record] of requestCounts.entries()) {
+        if (now > record.resetTime) {
+          requestCounts.delete(key);
+        }
+      }
+    }
     
     if (!requestCounts.has(ip)) {
       requestCounts.set(ip, { count: 1, resetTime: now + rateLimitWindow });

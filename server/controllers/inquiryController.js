@@ -35,9 +35,13 @@ const deleteInquiry = async (req, res) => {
     const item = await Inquiry.findById(req.params.id);
     if (item) {
       if (item.drawing && item.drawing.public_id) { 
-        const result = await cloudinary.uploader.destroy(item.drawing.public_id, { resource_type: 'raw' });
-        if (result.result !== 'ok') {
-          await cloudinary.uploader.destroy(item.drawing.public_id, { resource_type: 'image' });
+        try {
+          const result = await cloudinary.uploader.destroy(item.drawing.public_id, { resource_type: 'raw' });
+          if (result.result !== 'ok' && result.result !== 'not found') {
+            await cloudinary.uploader.destroy(item.drawing.public_id, { resource_type: 'image' });
+          }
+        } catch (cloudinaryError) {
+          console.error(`Cloudinary destroy error for drawing public_id: ${item.drawing.public_id}:`, cloudinaryError.message);
         }
       }
       await Inquiry.deleteOne({ _id: item._id });
