@@ -47,10 +47,8 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   : [
       "http://localhost:5173",
       "http://localhost:5174",
-      "https://YOUR-CLIENT.web.app",
-      "https://YOUR-ADMIN.web.app",
-      "https://YOUR-CLIENT.firebaseapp.com",
-      "https://YOUR-ADMIN.firebaseapp.com"
+      "https://sri-neelambiga-industries.web.app",
+      "https://sri-neelambiga-industries.firebaseapp.com"
     ];
 
 app.use(
@@ -59,14 +57,19 @@ app.use(
       // Allow requests with no origin (like mobile apps, curl, postman)
       if (!origin) return callback(null, true);
       
-      if (allowedOrigins.indexOf(origin) !== -1 || origin.startsWith("http://localhost:")) {
+      const isAllowed = allowedOrigins.indexOf(origin) !== -1 || 
+                        origin.startsWith("http://localhost:") ||
+                        /^https:\/\/(www\.)?sri-neelambiga-industries(-[a-z0-9]+)?\.(web\.app|firebaseapp\.com)$/i.test(origin);
+                        
+      if (isAllowed) {
         callback(null, true);
       } else {
         console.warn(`CORS blocked for origin: ${origin}`);
-        callback(new Error("Not allowed by CORS"));
+        callback(null, false);
       }
     },
     credentials: true,
+    optionsSuccessStatus: 200 // Ensure success status code for OPTIONS preflight requests
   })
 );
 
