@@ -1,81 +1,118 @@
 // Catch ALL errors
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('UNHANDLED REJECTION:', reason);
-  if (reason && reason.stack) console.error(reason.stack);
-});
-process.on('uncaughtException', (err) => {
-  console.error('UNCAUGHT EXCEPTION:', err);
+process.on("unhandledRejection", (reason) => {
+  console.error("UNHANDLED REJECTION:", reason);
 });
 
-const express = require('express');
-const cors = require('cors');
-const dotenv = require('dotenv');
-const mongoose = require('mongoose');
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT EXCEPTION:", err);
+});
 
-// Load environment variables
+const express = require("express");
+const cors = require("cors");
+const dotenv = require("dotenv");
+const mongoose = require("mongoose");
+
 dotenv.config();
 
 const app = express();
 
-const sanitizeMiddleware = require('./middleware/sanitize');
-
 // Middleware
-app.use(cors());
+const sanitizeMiddleware = require("./middleware/sanitize");
+
+// ======================
+// Middleware
+// ======================
+
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "http://localhost:5174",
+
+      // Replace these with your Firebase URLs after deployment
+      "https://YOUR-CLIENT.web.app",
+      "https://YOUR-ADMIN.web.app",
+      "https://YOUR-CLIENT.firebaseapp.com",
+      "https://YOUR-ADMIN.firebaseapp.com",
+    ],
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(sanitizeMiddleware);
 
-// Prevent browser caching for all API responses
+// Disable cache
 app.use((req, res, next) => {
-  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.set('Pragma', 'no-cache');
-  res.set('Expires', '0');
+  res.set("Cache-Control", "no-store");
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
   next();
 });
 
-// Database connection
+// ======================
+// MongoDB
+// ======================
+
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGO_URI);
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
+
+    console.log("MongoDB Connected:", conn.connection.host);
   } catch (error) {
-    console.error(`Error: ${error.message}`);
+    console.error("MongoDB Error:", error.message);
     process.exit(1);
   }
 };
 
 connectDB();
 
-const path = require('path');
+// ======================
+// Routes
+// ======================
 
-// Import Routes
-app.use('/api', require('./routes'));
+app.use("/api", require("./routes"));
 
-// Serve static assets in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../client/dist')));
-  app.get('*', (req, res) => {
-    res.sendFile(path.resolve(__dirname, '../client', 'dist', 'index.html'));
+// ======================
+// Root Route
+// ======================
+
+app.get("/", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Sri Neelambiga Industries API Running Successfully 🚀",
+    version: "1.0.0",
   });
-} else {
-  app.get('/', (req, res) => {
-    res.send('SNI API is running...');
-  });
-}
-
-// Global error handler - Express 5 needs this to log errors
-// Express 5 error handler must have exactly 4 parameters
-app.use(function errorHandler(err, req, res, next) {
-  console.error('GLOBAL ERROR:', err);
-  console.error('Error type:', typeof err);
-  console.error('Error constructor:', err && err.constructor && err.constructor.name);
-  if (err instanceof Error) {
-    console.error('Error stack:', err.stack);
-  }
-  if (!res.headersSent) {
-    res.status(err.status || 500).json({ message: err.message || 'Internal Server Error' });
-  }
 });
+
+// ======================
+// 404 Handler
+// ======================
+
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "API Route Not Found",
+  });
+});
+
+// ======================
+// Global Error Handler
+// ======================
+
+app.use((err, req, res, next) => {
+  console.error(err);
+
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || "Internal Server Error",
+  });
+});
+
+// ======================
+// Start Server
+// ======================
 
 const PORT = process.env.PORT || 5000;
 
